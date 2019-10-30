@@ -12,10 +12,8 @@ from .callbacks import EarlyStop
 
 class Trainer:
     """Supervised trainer.
-
     Args
     ----
-
     config (`dict`):
         'max_train_epoch' (int):
         'early_stop_patience' (int):
@@ -28,27 +26,39 @@ class Trainer:
             If True, print verbose message. Default to False.
         'tqdm' (bool, optional):
             If True, tqdm progress bar for batch iteration. Default to False.
-
+        'save_end_state' (bool, optional):
+            If True, model end state will be saved. Default to False.
     data_iter (`dict`):
         'train', 'val', 'test' (iterator):
-
+            Data iterators should be on the right device beforehand.
     model, optimizer, scheduler (`torch`):
         PyTorch model, optimizer, scheduler (optional).
-
     criteria (`dict`): Other criterions will be calculated as well.
         'loss' (function):
             Calculate loss for `backward()`.
+    hparams_to_save, metrics_to_save (`list[str]`):
+        Save to tensorboard hparams. Default to save all of config.
     """
 
     def __init__(
-        self, config, data_iter, model, optimizer, criteria, scheduler=None
+        self,
+        config,
+        data_iter,
+        model,
+        optimizer,
+        criteria,
+        scheduler=None,
+        hparams_to_save=None,
+        metrics_to_save=None,
     ):
-        self.config = self.append_config(config)
         self.data_iter = data_iter
-        self.model = self.distribute_model(model)
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.criteria = criteria
+        self.hparams_to_save = hparams_to_save
+        self.metrics_to_save = metrics_to_save
+        self.config = self.append_config(config)
+        self.model = self.distribute_model(model)
         self.writer = SummaryWriter(self.config["save_path"])
 
     def append_config(self, config):
@@ -58,9 +68,12 @@ class Trainer:
             if (torch.cuda.is_available() and config["cuda_list"])
             else "cpu"
         )
-        config["save_path"] = os.path.join(
-            config["save_path"], datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-        )
+        run_name = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+        if self.hparams_to_save:
+            run_name += "_" + "_".join(
+                [str(config[hparam]) for hparam in self.hparams_to_save]
+            )
+        config["save_path"] = os.path.join(config["save_path"], run_name)
         config["checkpoint_best_path"] = os.path.join(
             config["save_path"], "checkpoint_best.pt"
         )
@@ -89,15 +102,13 @@ class Trainer:
             iter_count += 1
             if is_train:
                 self.optimizer.zero_grad()
-            x, y = batch
-            x = x.to(self.config["device"])
-            y = y.to(self.config["device"])
+            inputs, labels = batch
             metrics = {}
             desc = f" epoch: {epoch:3d} "
             with torch.set_grad_enabled(is_train):
-                pred = self.model(x)
+                pred = self.model(inputs)
                 for name, criterion in self.criteria.items():
-                    metric = criterion(pred, y)
+                    metric = criterion(pred, labels)
                     metrics[name] = metric
                     metrics_sum[name] += metric.item()
                     desc += f"{name}_{phase:5s}: {metric.item():.6f} "
@@ -117,6 +128,13 @@ class Trainer:
         if self.config["tqdm"]:
             t.set_description(desc)
         return metrics_avg
+
+    def filter_dict(self, d, to_save):
+        return (
+            {k: v for k, v in d.items() if k in to_save}
+            if to_save
+            else dict(d)
+        )
 
     def train(self):
         early_stopper = EarlyStop(
@@ -146,9 +164,14 @@ class Trainer:
                 )
                 metrics_train_best = metrics_train
                 metrics_val_best = metrics_val
-        torch.save(self.model.state_dict(), self.config["checkpoint_end_path"])
+        if self.config["save_end_state"]:
+            torch.save(
+                self.model.state_dict(), self.config["checkpoint_end_path"]
+            )
+        metrics_best = {**metrics_val_best, **metrics_train_best}
         self.writer.add_hparams(
-            dict(self.config), {**metrics_train_best, **metrics_val_best}
+            self.filter_dict(self.config, self.hparams_to_save),
+            self.filter_dict(metrics_best, self.metrics_to_save),
         )
         self.writer.close()
 
