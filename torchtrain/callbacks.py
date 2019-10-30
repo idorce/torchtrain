@@ -1,15 +1,20 @@
 class EarlyStop:
-    def __init__(self, patience, verbose=False):
+    def __init__(self, patience, mode, verbose=False):
         super().__init__()
         self.patience_orignal = patience
+        self.mode = mode
         self.patience = patience
-        self.min_loss = float("inf")
+        self.best_metric = float("inf") if mode == "min" else float("-inf")
         self.verbose = verbose
 
-    def check(self, loss):
+    def check(self, metric):
         signal = ""
-        if loss < self.min_loss:
-            self.min_loss = loss
+        if self.mode == "min":
+            best = metric < self.best_metric
+        else:
+            best = metric > self.best_metric
+        if best:
+            self.best_metric = metric
             self.patience = self.patience_orignal
             signal = "best"
             if self.verbose:
