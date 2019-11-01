@@ -33,7 +33,7 @@ class Trainer:
         'loss' (function):
             Calculate loss for `backward()`.
     hparams_to_save, metrics_to_save (`list[str]`):
-        Save to tensorboard hparams. Default to save all of config.
+        Save to tensorboard hparams. Default to not save hparams.
     """
 
     def __init__(
@@ -91,6 +91,7 @@ class Trainer:
             metrics_avg[f"{name}/{phase}"] = metric_avg
             desc += f"{name}_{phase:5s}: {metric_avg:.6f} "
             self.writer.add_scalar(f"{name}/{phase}", metric_avg, epoch)
+        self.writer.flush()
         if self.config["tqdm"]:
             t.set_description(desc)
         return metrics_avg
@@ -122,11 +123,12 @@ class Trainer:
                     epoch,
                 )
                 self.scheduler.step(metric)
-        self.writer.add_hparams(
-            utils.filter_dict(self.config, self.hparams_to_save),
-            utils.filter_dict(metrics_best, self.metrics_to_save),
-        )
-        self.writer.close()
+        if self.hparams_to_save:
+            self.writer.add_hparams(
+                utils.filter_dict(self.config, self.hparams_to_save),
+                utils.filter_dict(metrics_best, self.metrics_to_save),
+            )
+        self.writer.flush()
 
     def test(self, checkpoint_path=None):
         if not checkpoint_path:
@@ -136,5 +138,5 @@ class Trainer:
         self.writer.add_hparams(
             utils.filter_dict(self.config, self.hparams_to_save), metrics_test
         )
-        self.writer.close()
+        self.writer.flush()
         return metrics_test
