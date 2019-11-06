@@ -8,32 +8,38 @@ from .callbacks import EarlyStop
 
 class Trainer:
     """Supervised trainer.
-    Args
-    ----
-    config (`dict`):
-        'max_train_epoch' (int):
-        'early_stop_patience' (int):
-        'early_stop_metric' (str):
-        'early_stop_mode' (str, ['min', 'max']):
-        'cuda_list' (str):
+
+    Parameters
+    ----------
+    config : dict
+        'max_train_epoch' : int
+        'early_stop_patience' : int
+        'early_stop_metric' : str
+        'early_stop_mode' : str, ['min', 'max']
+        'cuda_list' : str
             e.g. '1,3'.
-        'save_path' (str):
+        'save_path' : str
             Create a subfolder using current datetime.
             Best checkpoint and tensorboard logs are saved inside.
-        'early_stop_verbose' (bool, optional):
+        'early_stop_verbose' : bool, optional
             If True, early stop print verbose message. Default to False.
-        'tqdm' (bool, optional):
+        'tqdm' : bool, optional
             If True, tqdm progress bar for batch iteration. Default to False.
-    data_iter (`dict`):
-        'train', 'val', 'test' (iterator):
+    data_iter : dict
+        'train', 'val', 'test' : iterator
             Data iterators should be on the right device beforehand.
-    model, optimizer, scheduler (`torch`):
-        PyTorch model, optimizer, scheduler (optional).
-    criteria (`dict`): Other criterions will be calculated as well.
-        'loss' (function):
+    model, optimizer : torch
+        PyTorch model, optimizer.
+    criteria : dict
+        Other criterions will be calculated as well.
+        'loss' : function
             Calculate loss for `backward()`.
-    hparams_to_save, metrics_to_save (`list[str]`):
+    scheduler : torch, optional
+        PyTorch scheduler.
+    hparams_to_save, metrics_to_save : list[str]
         Save to tensorboard hparams. Default to not save hparams.
+    batch_to_xy : function
+        Will be used as `inputs, labels = self.batch_to_xy(batch)`.
     """
 
     def __init__(
@@ -46,6 +52,7 @@ class Trainer:
         scheduler=None,
         hparams_to_save=None,
         metrics_to_save=None,
+        batch_to_xy=lambda x: x,
     ):
         self.data_iter = data_iter
         self.optimizer = optimizer
@@ -53,31 +60,33 @@ class Trainer:
         self.criteria = criteria
         self.hparams_to_save = hparams_to_save
         self.metrics_to_save = metrics_to_save
+        self.batch_to_xy = batch_to_xy
         self.config = utils.append_config(config)
         self.model = utils.distribute_model(model, config)
         self.writer = SummaryWriter(self.config["save_path"])
 
     def iter_batch(self, phase, epoch=1):
-        iter_count = 0
         is_train = phase == "train"
         self.model.train(is_train)
+        example_size = 0
         metrics_sum = {name: 0 for name, criterion in self.criteria.items()}
         t = self.data_iter[phase]
         if self.config["tqdm"]:
             t = tqdm(self.data_iter[phase], desc=phase)
         for batch in t:
-            iter_count += 1
-            if is_train:
-                self.optimizer.zero_grad()
-            inputs, labels = batch
+            inputs, labels = self.batch_to_xy(batch)
+            batch_size = labels.shape[0]
+            example_size += batch_size
             metrics = {}
             desc = f" epoch: {epoch:3d} "
+            if is_train:
+                self.optimizer.zero_grad()
             with torch.set_grad_enabled(is_train):
                 pred = self.model(inputs)
                 for name, criterion in self.criteria.items():
                     metric = criterion(pred, labels)
                     metrics[name] = metric
-                    metrics_sum[name] += metric.item()
+                    metrics_sum[name] += metric.item() * batch_size
                     desc += f"{name}_{phase:5s}: {metric.item():.6f} "
             if is_train:
                 metrics["loss"].backward()
@@ -87,7 +96,7 @@ class Trainer:
         metrics_avg = {}
         desc = f" epoch: {epoch:3d} "
         for name, v in metrics_sum.items():
-            metric_avg = v / iter_count
+            metric_avg = v / example_size
             metrics_avg[f"{name}/{phase}"] = metric_avg
             desc += f"{name}_{phase:5s}: {metric_avg:.6f} "
             self.writer.add_scalar(f"{name}/{phase}", metric_avg, epoch)
