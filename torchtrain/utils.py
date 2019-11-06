@@ -18,13 +18,16 @@ def append_config(config):
     config["checkpoint_path"] = os.path.join(
         config["save_path"], "checkpoint.pt"
     )
+    config["data_parallel_dim"] = int(config["data_parallel_dim"])
     return config
 
 
 def distribute_model(model, config):
     if config["device"] != "cpu":
         model = torch.nn.DataParallel(
-            model, device_ids=eval(config["cuda_list"])
+            model,
+            device_ids=eval(config["cuda_list"]),
+            dim=config["data_parallel_dim"],
         )
         model = model.to(config["device"])
     return model

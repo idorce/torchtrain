@@ -25,6 +25,8 @@ class Trainer:
             If True, early stop print verbose message. Default to False.
         'tqdm' : bool, optional
             If True, tqdm progress bar for batch iteration. Default to False.
+        'data_parallel_dim' : int, optional
+            Default to 1.
     data_iter : dict
         'train', 'val', 'test' : iterator
             Data iterators should be on the right device beforehand.
