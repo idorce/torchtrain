@@ -64,7 +64,7 @@ class Trainer:
         self.metrics_to_save = metrics_to_save
         self.batch_to_xy = batch_to_xy
         self.config = utils.append_config(config)
-        self.model = utils.distribute_model(model, config)
+        self.model = utils.distribute_model(model, self.config)
         self.writer = SummaryWriter(self.config["save_path"])
 
     def iter_batch(self, phase, epoch=1):
