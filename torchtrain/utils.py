@@ -1,25 +1,4 @@
-import os
-from collections import defaultdict
-from datetime import datetime
-
 import torch
-
-
-def append_config(config):
-    config = defaultdict(bool, config)
-    config["device"] = (
-        "cuda:" + config["cuda_list"][0]
-        if (torch.cuda.is_available() and config["cuda_list"])
-        else "cpu"
-    )
-    config["save_path"] = os.path.join(
-        config["save_path"], datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    )
-    config["checkpoint_path"] = os.path.join(
-        config["save_path"], "checkpoint.pt"
-    )
-    config["data_parallel_dim"] = int(config["data_parallel_dim"])
-    return config
 
 
 def distribute_model(model, config):
@@ -35,3 +14,7 @@ def distribute_model(model, config):
 
 def filter_dict(d, to_save):
     return {k: v for k, v in d.items() if k in to_save} if to_save else dict(d)
+
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
