@@ -23,5 +23,5 @@ class AverageAggregator:
             self.reset()
         return value
 
-    def batch_score(self):
+    def get_batch_score(self):
         return self.batch_score
