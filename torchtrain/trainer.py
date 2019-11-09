@@ -131,7 +131,7 @@ class Trainer:
         )
         return metrics
 
-    def _schedule_lr(self, epoch, metrics):
+    def schedule_lr(self, epoch, metrics):
         if self.scheduler:
             metric = metrics[self.config["watching_metric"]]
             self.writer.add_scalar(
@@ -158,7 +158,7 @@ class Trainer:
             }
             if early_stopper.check(metrics):
                 break
-            self._schedule_lr(epoch, metrics)
+            self.schedule_lr(epoch, metrics)
         self.save_hparams(early_stopper.best_metrics)
 
     def test(self, checkpoint_path=None):
