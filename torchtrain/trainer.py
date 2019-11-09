@@ -99,7 +99,7 @@ class Trainer:
         metrics = {}
         desc = f" epoch: {epoch:3d} "
         for name, criterion in self.criteria.items():
-            metric = criterion.value(reset)
+            metric = criterion.get_value(reset)
             metrics[f"{name}/{phase}"] = metric
             desc += f"{name}_{phase:5s}: {metric:.6f} "
             if write:
