@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 
@@ -18,3 +19,8 @@ def filter_dict(d, to_save):
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def set_random_seeds(seed):
+    np.random.seed(seed)
+    torch.manual_seed(seed)
