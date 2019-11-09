@@ -120,7 +120,7 @@ class Trainer:
                 self.optimizer.zero_grad()
             with torch.set_grad_enabled(is_train):
                 outputs = self.model(inputs)
-                for criterion in self.criteria:
+                for criterion in self.criteria.values():
                     criterion.update(outputs, labels)
             if is_train:
                 self.criteria["loss"].batch_score().backward()
