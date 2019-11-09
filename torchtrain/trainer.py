@@ -150,7 +150,7 @@ class Trainer:
             self.writer.flush()
 
     def train(self):
-        early_stopper = EarlyStop(self.config)
+        early_stopper = EarlyStop(self.config, self.model)
         for epoch in range(1, self.config["max_train_epoch"] + 1):
             metrics = {
                 **self.iter_batch("train", epoch),
