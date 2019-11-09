@@ -18,10 +18,12 @@ class Trainer:
     config : dict
         'max_train_epoch' : int
         'early_stop_patience' : int
-        'early_stop_metric' : str
-        'early_stop_mode' : str, ['min', 'max']
+        'watching_metric' : str
+            Metric to monitor for early stop and lr scheduler.
+        'watch_mode' : str, ['min', 'max']
         'cuda_list' : str
-            e.g. '1,3'.
+            E.g. '1,3'. Will be used like `config["cuda_list"][0]` and
+            `eval(config["cuda_list"])`.
         'save_path' : str
             Create a subfolder using current datetime.
             Best checkpoint and tensorboard logs are saved inside.
@@ -30,7 +32,9 @@ class Trainer:
         'tqdm' : bool, optional
             If True, tqdm progress bar for batch iteration. Default to False.
         'data_parallel_dim' : int, optional
-            Default to 1.
+            Default to 0.
+        'train_one_epoch' : bool, optional
+            If True, only train one epoch for testing code. Default to False.
     data_iter : dict
         'train', 'val', 'test' : iterator
             Data iterators should be on the right device beforehand.
@@ -85,81 +89,77 @@ class Trainer:
             config["save_path"], "checkpoint.pt"
         )
         config["data_parallel_dim"] = int(config["data_parallel_dim"])
+        if config["train_one_epoch"]:
+            config["max_train_epoch"] = 1
         return config
+
+    def current_stats(
+        self, phase, epoch, tqdm_wrapper, reset=False, write=False
+    ):
+        metrics = {}
+        desc = f" epoch: {epoch:3d} "
+        for name, criterion in self.criteria.items():
+            metric = criterion.value(reset)
+            metrics[f"{name}/{phase}"] = metric
+            desc += f"{name}_{phase:5s}: {metric:.6f} "
+            if write:
+                self.writer.add_scalar(f"{name}/{phase}", metric, epoch)
+        self.writer.flush()
+        tqdm_wrapper.set_description(desc)
+        return metrics
 
     def iter_batch(self, phase, epoch=1):
         is_train = phase == "train"
         self.model.train(is_train)
-        example_size = 0
-        metrics_sum = {name: 0 for name, criterion in self.criteria.items()}
-        t = self.data_iter[phase]
-        if self.config["tqdm"]:
-            t = tqdm(self.data_iter[phase], desc=phase)
-        for batch in t:
+        data_iter = tqdm(
+            self.data_iter[phase], desc=phase, disable=not self.config["tqdm"]
+        )
+        for batch in data_iter:
             inputs, labels = self.batch_to_xy(batch, phase)
-            batch_size = labels.shape[0]
-            example_size += batch_size
-            metrics = {}
-            desc = f" epoch: {epoch:3d} "
             if is_train:
                 self.optimizer.zero_grad()
             with torch.set_grad_enabled(is_train):
-                pred = self.model(inputs)
-                for name, criterion in self.criteria.items():
-                    metric = criterion(pred, labels)
-                    metrics[name] = metric
-                    metrics_sum[name] += metric.item() * batch_size
-                    desc += f"{name}_{phase:5s}: {metric.item():.6f} "
+                outputs = self.model(inputs)
+                for criterion in self.criteria:
+                    criterion.update(outputs, labels)
             if is_train:
-                metrics["loss"].backward()
+                self.criteria["loss"].batch_loss().backward()
                 self.optimizer.step()
-            if self.config["tqdm"]:
-                t.set_description(desc)
-        metrics_avg = {}
-        desc = f" epoch: {epoch:3d} "
-        for name, v in metrics_sum.items():
-            metric_avg = v / example_size
-            metrics_avg[f"{name}/{phase}"] = metric_avg
-            desc += f"{name}_{phase:5s}: {metric_avg:.6f} "
-            self.writer.add_scalar(f"{name}/{phase}", metric_avg, epoch)
-        self.writer.flush()
-        if self.config["tqdm"]:
-            t.set_description(desc)
-        return metrics_avg
-
-    def train(self):
-        early_stopper = EarlyStop(
-            self.config["early_stop_patience"],
-            self.config["early_stop_mode"],
-            verbose=self.config["early_stop_verbose"],
+            self.current_stats(phase, epoch, data_iter)
+        metrics = self.current_stats(
+            phase, epoch, data_iter, reset=True, write=True
         )
-        metrics_best = {}
-        for epoch in range(1, self.config["max_train_epoch"] + 1):
-            metrics_train = self.iter_batch("train", epoch)
-            metrics_val = self.iter_batch("val", epoch)
-            metrics = {**metrics_train, **metrics_val}
-            metric = metrics[self.config["early_stop_metric"]]
-            signal = early_stopper.check(metric)
-            if signal == "stop":
-                break
-            elif signal == "best":
-                torch.save(
-                    self.model.state_dict(), self.config["checkpoint_path"]
-                )
-                metrics_best = metrics
-            if self.scheduler:
-                self.writer.add_scalar(
-                    "lr",
-                    [group["lr"] for group in self.optimizer.param_groups][0],
-                    epoch,
-                )
-                self.scheduler.step(metric)
+        return metrics
+
+    def _schedule_lr(self, epoch, metrics):
+        if self.scheduler:
+            metric = metrics[self.config["watching_metric"]]
+            self.writer.add_scalar(
+                "lr",
+                [group["lr"] for group in self.optimizer.param_groups][0],
+                epoch,
+            )
+            self.scheduler.step(metric)
+
+    def save_hparams(self, best_metrics):
         if self.hparams_to_save:
             self.writer.add_hparams(
                 utils.filter_dict(self.config, self.hparams_to_save),
-                utils.filter_dict(metrics_best, self.metrics_to_save),
+                utils.filter_dict(best_metrics, self.metrics_to_save),
             )
-        self.writer.flush()
+            self.writer.flush()
+
+    def train(self):
+        early_stopper = EarlyStop(self.config)
+        for epoch in range(1, self.config["max_train_epoch"] + 1):
+            metrics = {
+                **self.iter_batch("train", epoch),
+                **self.iter_batch("val", epoch),
+            }
+            if early_stopper.check(metrics):
+                break
+            self._schedule_lr(epoch, metrics)
+        self.save_hparams(early_stopper.best_metrics)
 
     def test(self, checkpoint_path=None):
         if not checkpoint_path:
