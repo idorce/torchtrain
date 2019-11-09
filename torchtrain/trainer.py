@@ -123,7 +123,7 @@ class Trainer:
                 for criterion in self.criteria:
                     criterion.update(outputs, labels)
             if is_train:
-                self.criteria["loss"].batch_loss().backward()
+                self.criteria["loss"].batch_score().backward()
                 self.optimizer.step()
             self.current_stats(phase, epoch, data_iter)
         metrics = self.current_stats(

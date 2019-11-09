@@ -4,24 +4,24 @@ class AverageMeter:
         self.reset()
 
     def reset(self):
-        self.avg = 0
+        self.value = 0
         self.sum = 0
         self.count = 0
-        self.batch_loss = None
+        self.batch_score = None
 
     def update(self, outputs, labels):
+        self.batch_score = self.criterion(outputs, labels)
+        batch_value = self.batch_score.item()
         batch_size = labels.size(0)
-        self.batch_loss = self.criterion(outputs, labels)
-        batch_value = self.batch_loss.item()
         self.sum += batch_value * batch_size
         self.count += batch_size
-        self.avg = self.sum / self.count
+        self.value = self.sum / self.count
 
     def value(self, reset=False):
-        value = self.avg
+        value = self.value
         if reset:
             self.reset()
         return value
 
-    def batch_loss(self):
-        return self.batch_loss
+    def batch_score(self):
+        return self.batch_score
