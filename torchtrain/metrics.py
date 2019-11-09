@@ -1,4 +1,4 @@
-class AverageMeter:
+class AverageAggregator:
     def __init__(self, criterion):
         self.criterion = criterion
         self.reset()
