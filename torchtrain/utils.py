@@ -14,7 +14,7 @@ def prepare_model(model, config):
             model, device_ids=eval(config["cuda_list"])
         )
         model = model.to(config["device"])
-    if config["start_epoch"] > 1:
+    if config["start_epoch"] > 1 or config["start_ckp_path"]:
         model = load_model(model, config["start_ckp_path"])
     return model
 
