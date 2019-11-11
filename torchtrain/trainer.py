@@ -22,7 +22,7 @@ class Trainer:
             Metric to monitor for early stop and lr scheduler.
         'watch_mode' : str, ['min', 'max']
         'cuda_list' : str
-            E.g. '1,3'. Will be used like `config["cuda_list"][0]` and
+            E.g. '1,3', ','. Will be used like `config["cuda_list"][0]` and
             `eval(config["cuda_list"])`.
         'save_path' : str
             Create a subfolder using current datetime.
@@ -31,8 +31,8 @@ class Trainer:
             If True, early stop print verbose message. Default to False.
         'tqdm' : bool, optional
             If True, tqdm progress bar for batch iteration. Default to False.
-        'data_parallel_dim' : int, optional
-            Default to 0.
+        'grad_accumulate_batch' : int, optional
+           Accumulate gradient for given batches, then backward. Default to 1.
         'train_one_epoch' : bool, optional
             If True, only train one epoch for testing code. Default to False.
     data_iter : dict
@@ -71,11 +71,11 @@ class Trainer:
         self.hparams_to_save = hparams_to_save
         self.metrics_to_save = metrics_to_save
         self.batch_to_xy = batch_to_xy
-        self.config = self.append_config(config)
+        self.config = self.configure(config)
         self.model = utils.distribute_model(model, self.config)
         self.writer = SummaryWriter(self.config["save_path"])
 
-    def append_config(self, config):
+    def configure(self, config):
         config = defaultdict(bool, config)
         config["device"] = (
             "cuda:" + config["cuda_list"][0]
@@ -88,9 +88,14 @@ class Trainer:
         config["checkpoint_path"] = os.path.join(
             config["save_path"], "checkpoint.pt"
         )
-        config["data_parallel_dim"] = int(config["data_parallel_dim"])
         if config["train_one_epoch"]:
             config["max_train_epoch"] = 1
+        if config["grad_accumulate_batch"] < 1:
+            config["grad_accumulate_batch"] = 1
+        else:
+            config["grad_accumulate_batch"] = int(
+                config["grad_accumulate_batch"]
+            )
         return config
 
     def current_stats(
@@ -111,25 +116,23 @@ class Trainer:
     def iter_batch(self, phase, epoch=1):
         is_train = phase == "train"
         self.model.train(is_train)
-        data_iter = tqdm(
-            self.data_iter[phase], desc=phase, disable=not self.config["tqdm"]
-        )
-        for batch in data_iter:
+        data = tqdm(self.data_iter[phase], disable=not self.config["tqdm"])
+        self.optimizer.zero_grad()
+        for batch in data:
             inputs, labels = self.batch_to_xy(batch, phase)
-            if is_train:
-                self.optimizer.zero_grad()
             with torch.set_grad_enabled(is_train):
                 outputs = self.model(inputs)
                 for criterion in self.criteria.values():
                     criterion.update(outputs, labels)
             if is_train:
                 self.criteria["loss"].get_batch_score().backward()
-                self.optimizer.step()
-            self.current_stats(phase, epoch, data_iter)
-        metrics = self.current_stats(
-            phase, epoch, data_iter, reset=True, write=True
-        )
-        return metrics
+                if (data.n + 1) % self.config["grad_accumulate_batch"] == 0:
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
+            self.current_stats(phase, epoch, data)
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        return self.current_stats(phase, epoch, data, reset=True, write=True)
 
     def schedule_lr(self, epoch, metrics):
         if self.scheduler:

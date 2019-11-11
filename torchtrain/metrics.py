@@ -7,7 +7,6 @@ class AverageAggregator:
         self.value = 0
         self.sum = 0
         self.count = 0
-        self.batch_score = None
 
     def update(self, outputs, labels):
         self.batch_score = self.criterion(outputs, labels)
@@ -24,4 +23,6 @@ class AverageAggregator:
         return value
 
     def get_batch_score(self):
-        return self.batch_score
+        batch_score = self.batch_score
+        del self.batch_score
+        return batch_score

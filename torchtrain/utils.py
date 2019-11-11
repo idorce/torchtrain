@@ -5,9 +5,7 @@ import torch
 def distribute_model(model, config):
     if config["device"] != "cpu":
         model = torch.nn.DataParallel(
-            model,
-            device_ids=eval(config["cuda_list"]),
-            dim=config["data_parallel_dim"],
+            model, device_ids=eval(config["cuda_list"])
         )
         model = model.to(config["device"])
     return model
