@@ -95,6 +95,7 @@ class Trainer:
         config = utils.one_if_not_set(
             config, ["grad_accumulate_batch", "start_epoch"]
         )
+        config["n_parameters"] = utils.count_parameters(self.model)
         return config
 
     def current_stats(
