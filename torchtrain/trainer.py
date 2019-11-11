@@ -35,6 +35,8 @@ class Trainer:
            Accumulate gradient for given batches, then backward. Default to 1.
         'train_one_epoch' : bool, optional
             If True, only train one epoch for testing code. Default to False.
+        'start_epoch', 'start_ckp_path' : int, str, optional
+            start_epoch is default to 1, otherwise must specify start_ckp_path.
     data_iter : dict
         'train', 'val', 'test' : iterator
             Data iterators should be on the right device beforehand.
@@ -72,7 +74,7 @@ class Trainer:
         self.metrics_to_save = metrics_to_save
         self.batch_to_xy = batch_to_xy
         self.config = self.configure(config)
-        self.model = utils.distribute_model(model, self.config)
+        self.model = utils.prepare_model(model, self.config)
         self.writer = SummaryWriter(self.config["save_path"])
 
     def configure(self, config):
@@ -90,12 +92,9 @@ class Trainer:
         )
         if config["train_one_epoch"]:
             config["max_train_epoch"] = 1
-        if config["grad_accumulate_batch"] < 1:
-            config["grad_accumulate_batch"] = 1
-        else:
-            config["grad_accumulate_batch"] = int(
-                config["grad_accumulate_batch"]
-            )
+        config = utils.one_if_not_set(
+            config, ["grad_accumulate_batch", "start_epoch"]
+        )
         return config
 
     def current_stats(
@@ -154,7 +153,9 @@ class Trainer:
 
     def train(self):
         early_stopper = EarlyStop(self.config, self.model)
-        for epoch in range(1, self.config["max_train_epoch"] + 1):
+        for epoch in range(
+            self.config["start_epoch"], self.config["max_train_epoch"] + 1
+        ):
             metrics = {
                 **self.iter_batch("train", epoch),
                 **self.iter_batch("val", epoch),
@@ -167,7 +168,7 @@ class Trainer:
     def test(self, checkpoint_path=None):
         if not checkpoint_path:
             checkpoint_path = self.config["checkpoint_path"]
-        self.model.load_state_dict(torch.load(checkpoint_path))
+        self.model = utils.load_model(self.model, checkpoint_path)
         metrics_test = self.iter_batch("test")
         self.writer.add_hparams(
             utils.filter_dict(self.config, self.hparams_to_save), metrics_test
