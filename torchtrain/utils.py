@@ -8,7 +8,7 @@ def load_model(model, checkpoint_path):
 
 
 def prepare_model(model, config):
-    """"Distribute and load model."""
+    """Distribute and load model."""
     if config["device"] != "cpu":
         model = torch.nn.DataParallel(
             model, device_ids=eval(config["cuda_list"])
