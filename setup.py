@@ -28,5 +28,5 @@ setuptools.setup(
     ],
     python_requires=">=3.6",
     keywords="pytorch machine learning train",
-    install_requires=["tqdm", "torch", "tensorboard"],
+    install_requires=["tqdm", "torch", "numpy", "tensorboard"],
 )
