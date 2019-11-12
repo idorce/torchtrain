@@ -15,12 +15,11 @@ class EarlyStop:
 
     def check(self, metrics):
         metric = metrics[self.config["watching_metric"]]
-        if self.config["watch_mode"] == "min":
-            best = metric < self.best_metric
-        elif self.config["watch_mode"] == "max":
-            best = metric > self.best_metric
-        else:
-            raise ValueError("watch_mode can only be 'min' or 'max'.")
+        best = (
+            metric < self.best_metric
+            if self.config["watch_mode"] == "min"
+            else metric > self.best_metric
+        )
         if best:
             self.best_metric = metric
             self.patience = self.config["early_stop_patience"]
