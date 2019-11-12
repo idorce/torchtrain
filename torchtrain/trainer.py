@@ -44,13 +44,13 @@ class Trainer:
         PyTorch model, optimizer.
     criteria : dict
         Other criterions will be calculated as well.
-        'loss' : function
+        'loss' : callable
             Calculate loss for `backward()`.
     scheduler : torch, optional
         PyTorch scheduler.
     hparams_to_save, metrics_to_save : list[str]
         Save to tensorboard hparams. Default to not save hparams.
-    batch_to_xy : function
+    batch_to_xy : callable
         Will be used as `inputs, labels = self.batch_to_xy(batch, phase)`.
     """
 
