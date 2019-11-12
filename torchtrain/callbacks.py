@@ -1,4 +1,4 @@
-import torch
+from .utils import save_model
 
 
 class EarlyStop:
@@ -13,9 +13,6 @@ class EarlyStop:
         )
         self.best_metrics = {}
 
-    def save_model(self):
-        torch.save(self.model.state_dict(), self.config["checkpoint_path"])
-
     def check(self, metrics):
         metric = metrics[self.config["watching_metric"]]
         if self.config["watch_mode"] == "min":
@@ -29,7 +26,7 @@ class EarlyStop:
             self.patience = self.config["early_stop_patience"]
             if self.config["early_stop_verbose"]:
                 print("Save best-so-far model state_dict...")
-            self.save_model()
+            save_model(self.model, self.config["checkpoint_path"])
             self.best_metrics = metrics
         else:
             self.patience -= 1
