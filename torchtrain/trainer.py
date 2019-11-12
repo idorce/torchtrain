@@ -37,6 +37,8 @@ class Trainer:
             If True, only train one epoch for testing code. Default to False.
         'start_epoch', 'start_ckp_path' : int, str, optional
             start_epoch is default to 1, otherwise must specify start_ckp_path.
+        'grad_clip_norm' : float, optional
+            If greater than 0, apply gradient clipping. Default to 0.
     data_iter : dict
         'train', 'val', 'test' : iterator
             Data iterators should be on the right device beforehand.
@@ -113,6 +115,14 @@ class Trainer:
         tqdm_wrapper.set_description(desc)
         return metrics
 
+    def optim_step(self):
+        if self.config["grad_clip_norm"] > 0:
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), self.config["grad_clip_norm"]
+            )
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
     def iter_batch(self, phase, epoch=1):
         is_train = phase == "train"
         self.model.train(is_train)
@@ -127,11 +137,9 @@ class Trainer:
             if is_train:
                 self.criteria["loss"].get_batch_score().backward()
                 if (data.n + 1) % self.config["grad_accumulate_batch"] == 0:
-                    self.optimizer.step()
-                    self.optimizer.zero_grad()
+                    self.optim_step()
             self.current_stats(phase, epoch, data)
-        self.optimizer.step()
-        self.optimizer.zero_grad()
+        self.optim_step()
         return self.current_stats(phase, epoch, data, reset=True, write=True)
 
     def schedule_lr(self, epoch, metrics):
