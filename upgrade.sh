@@ -4,6 +4,4 @@
 # python3 setup.py sdist bdist_wheel
 # python3 -m twine upload dist/* --verbose
 pip install --upgrade torchtrain | grep -v satisfied
-pip install --upgrade torchtrain | grep -v satisfied
-pip install --upgrade torchtrain | grep -v satisfied
 pip search torchtrain
