@@ -68,15 +68,17 @@ class Trainer:
         metrics_to_save=None,
         batch_to_xy=lambda batch, phase: batch,
     ):
+        self.config = config
         self.data_iter = data_iter
+        self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.criteria = criteria
         self.hparams_to_save = hparams_to_save
         self.metrics_to_save = metrics_to_save
         self.batch_to_xy = batch_to_xy
-        self.config = self.configure(config)
-        self.model = utils.prepare_model(model, self.config)
+        self.config = self.configure(self.config)
+        self.model = utils.prepare_model(self.model, self.config)
         self.writer = SummaryWriter(self.config["save_path"])
 
     def configure(self, config):
