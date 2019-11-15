@@ -124,17 +124,18 @@ class Trainer:
         torch.save(state_dict, self.config["checkpoint_path"])
 
     def load_state_dict(self, checkpoint_path, model_only=False):
-        if checkpoint_path:
-            state_dict = torch.load(checkpoint_path)
-            self.model.load_state_dict(state_dict["model"])
-            if model_only:
-                return
-            self.optimizer.load_state_dict(state_dict["optimizer"])
-            if self.scheduler:
-                self.scheduler.load_state_dict(state_dict["scheduler"])
-            for phase, data in self.data_iter:
-                if hasattr(data, "load_state_dict"):
-                    self.data_iter[phase].load_state_dict(state_dict[phase])
+        if not checkpoint_path:
+            checkpoint_path = self.config["checkpoint_path"]
+        state_dict = torch.load(checkpoint_path)
+        self.model.load_state_dict(state_dict["model"])
+        if model_only:
+            return
+        self.optimizer.load_state_dict(state_dict["optimizer"])
+        if self.scheduler:
+            self.scheduler.load_state_dict(state_dict["scheduler"])
+        for phase, data in self.data_iter:
+            if hasattr(data, "load_state_dict"):
+                self.data_iter[phase].load_state_dict(state_dict[phase])
 
     def iter_batch(self, phase, epoch=1):
         """Iterate batches for one epoch."""
@@ -218,9 +219,7 @@ class Trainer:
         save_hparams()
 
     def test(self, checkpoint_path=None):
-        if not checkpoint_path:
-            checkpoint_path = self.config["checkpoint_path"]
-        self.load_state_dict(self.model, checkpoint_path, model_only=True)
+        self.load_state_dict(checkpoint_path, model_only=True)
         metrics_test = self.iter_batch("test")
         self.writer.add_hparams(
             utils.filter_dict(self.config, self.hparams_to_save), metrics_test
