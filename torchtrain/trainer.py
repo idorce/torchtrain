@@ -77,16 +77,13 @@ class Trainer:
         self.hparams_to_save = hparams_to_save
         self.metrics_to_save = metrics_to_save
         self.batch_to_xy = batch_to_xy
-
         self.configure()
         self.distribute_model()
         self.load_state_dict()
-
         self.writer = SummaryWriter(self.config["save_path"])
 
     def configure(self):
         self.config = defaultdict(bool, self.config)
-
         self.config["device"] = (
             "cuda:" + self.config["cuda_list"][0]
             if (torch.cuda.is_available() and self.config["cuda_list"])
@@ -140,11 +137,6 @@ class Trainer:
     def iter_batch(self, phase, epoch=1):
         """Iterate batches for one epoch."""
 
-        is_train = phase == "train"
-        self.model.train(is_train)
-        data = tqdm(self.data_iter[phase], disable=not self.config["tqdm"])
-        self.optimizer.zero_grad()
-
         def optim_step():
             if self.config["grad_clip_norm"] > 0:
                 torch.nn.utils.clip_grad_norm_(
@@ -178,6 +170,10 @@ class Trainer:
                     optim_step()
             current_stats()
 
+        is_train = phase == "train"
+        self.model.train(is_train)
+        data = tqdm(self.data_iter[phase], disable=not self.config["tqdm"])
+        self.optimizer.zero_grad()
         for batch in data:
             one_batch(batch)
         optim_step()
@@ -185,8 +181,6 @@ class Trainer:
 
     def train(self):
         """Train and validate."""
-
-        early_stopper = EarlyStop(self)
 
         def schedule_lr(epoch, metrics):
             if self.scheduler:
@@ -208,6 +202,7 @@ class Trainer:
                 )
                 self.writer.flush()
 
+        early_stopper = EarlyStop(self)
         for epoch in range(
             self.config["start_epoch"], self.config["max_train_epoch"] + 1
         ):
