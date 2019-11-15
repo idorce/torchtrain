@@ -81,7 +81,7 @@ class Trainer:
         self.writer = SummaryWriter(self.config["save_path"])
         self.distribute_model()
         if self.config["start_ckp_path"]:
-            self.load_state_dict()
+            self.load_state_dict(self.config["start_ckp_path"])
 
     def configure(self):
         self.config = defaultdict(bool, self.config)
