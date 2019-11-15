@@ -102,35 +102,36 @@ class Trainer:
         config["n_parameters"] = utils.count_parameters(self.model)
         return config
 
-    def current_stats(
-        self, phase, epoch, tqdm_wrapper, reset=False, write=False
-    ):
-        metrics = {}
-        desc = f" epoch: {epoch:3d} "
-        for name, criterion in self.criteria.items():
-            metric = criterion.get_value(reset)
-            metrics[f"{name}/{phase}"] = metric
-            desc += f"{name}_{phase:5s}: {metric:.6f} "
-            if write:
-                self.writer.add_scalar(f"{name}/{phase}", metric, epoch)
-        self.writer.flush()
-        tqdm_wrapper.set_description(desc)
-        return metrics
-
-    def optim_step(self):
-        if self.config["grad_clip_norm"] > 0:
-            torch.nn.utils.clip_grad_norm_(
-                self.model.parameters(), self.config["grad_clip_norm"]
-            )
-        self.optimizer.step()
-        self.optimizer.zero_grad()
-
     def iter_batch(self, phase, epoch=1):
+        """Iterate batches for one epoch."""
+
         is_train = phase == "train"
         self.model.train(is_train)
         data = tqdm(self.data_iter[phase], disable=not self.config["tqdm"])
         self.optimizer.zero_grad()
-        for batch in data:
+
+        def optim_step():
+            if self.config["grad_clip_norm"] > 0:
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.config["grad_clip_norm"]
+                )
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+
+        def current_stats(reset=False, write=False):
+            metrics = {}
+            desc = f" epoch: {epoch:3d} "
+            for name, criterion in self.criteria.items():
+                metric = criterion.get_value(reset)
+                metrics[f"{name}/{phase}"] = metric
+                desc += f"{name}_{phase:5s}: {metric:.6f} "
+                if write:
+                    self.writer.add_scalar(f"{name}/{phase}", metric, epoch)
+            self.writer.flush()
+            data.set_description(desc)
+            return metrics
+
+        def one_batch(batch):
             inputs, labels = self.batch_to_xy(batch, phase)
             with torch.set_grad_enabled(is_train):
                 outputs = self.model(inputs)
@@ -139,31 +140,39 @@ class Trainer:
             if is_train:
                 self.criteria["loss"].get_batch_score().backward()
                 if (data.n + 1) % self.config["grad_accumulate_batch"] == 0:
-                    self.optim_step()
-            self.current_stats(phase, epoch, data)
-        self.optim_step()
-        return self.current_stats(phase, epoch, data, reset=True, write=True)
+                    optim_step()
+            current_stats()
 
-    def schedule_lr(self, epoch, metrics):
-        if self.scheduler:
-            metric = metrics[self.config["watching_metric"]]
-            self.writer.add_scalar(
-                "lr",
-                [group["lr"] for group in self.optimizer.param_groups][0],
-                epoch,
-            )
-            self.scheduler.step(metric)
-
-    def save_hparams(self, best_metrics):
-        if self.hparams_to_save:
-            self.writer.add_hparams(
-                utils.filter_dict(self.config, self.hparams_to_save),
-                utils.filter_dict(best_metrics, self.metrics_to_save),
-            )
-            self.writer.flush()
+        for batch in data:
+            one_batch(batch)
+        optim_step()
+        return current_stats(reset=True, write=True)
 
     def train(self):
+        """Train and validate."""
+
         early_stopper = EarlyStop(self.config, self.model)
+
+        def schedule_lr(epoch, metrics):
+            if self.scheduler:
+                metric = metrics[self.config["watching_metric"]]
+                self.writer.add_scalar(
+                    "lr",
+                    [group["lr"] for group in self.optimizer.param_groups][0],
+                    epoch,
+                )
+                self.scheduler.step(metric)
+
+        def save_hparams():
+            if self.hparams_to_save:
+                self.writer.add_hparams(
+                    utils.filter_dict(self.config, self.hparams_to_save),
+                    utils.filter_dict(
+                        early_stopper.best_metrics, self.metrics_to_save
+                    ),
+                )
+                self.writer.flush()
+
         for epoch in range(
             self.config["start_epoch"], self.config["max_train_epoch"] + 1
         ):
@@ -173,8 +182,8 @@ class Trainer:
             }
             if early_stopper.check(metrics):
                 break
-            self.schedule_lr(epoch, metrics)
-        self.save_hparams(early_stopper.best_metrics)
+            schedule_lr(epoch, metrics)
+        save_hparams()
 
     def test(self, checkpoint_path=None):
         if not checkpoint_path:
