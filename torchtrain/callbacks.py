@@ -10,7 +10,7 @@ class EarlyStop:
         )
         self.best_metrics = {}
 
-    def check(self, metrics):
+    def check(self, epoch, metrics):
         metric = metrics[self.config["watching_metric"]]
         best = (
             metric < self.best_metric
@@ -22,7 +22,7 @@ class EarlyStop:
             self.patience = self.config["early_stop_patience"]
             if self.config["early_stop_verbose"]:
                 print("Save best-so-far model state_dict...")
-            self.trainer.save_state_dict()
+            self.trainer.save_state_dict(epoch)
             self.best_metrics = metrics
         else:
             self.patience -= 1

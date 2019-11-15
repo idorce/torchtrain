@@ -109,8 +109,9 @@ class Trainer:
             self.model, device_ids=eval(self.config["cuda_list"])
         ).to(self.config["device"])
 
-    def save_state_dict(self):
+    def save_state_dict(self, epoch):
         state_dict = {
+            "epoch": epoch,
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
         }
@@ -130,6 +131,7 @@ class Trainer:
         self.model.load_state_dict(state_dict["model"])
         if model_only:
             return
+        self.config["start_epoch"] = state_dict["epoch"] + 1
         self.optimizer.load_state_dict(state_dict["optimizer"])
         if self.scheduler:
             self.scheduler.load_state_dict(state_dict["scheduler"])
@@ -213,7 +215,7 @@ class Trainer:
                 **self.iter_batch("train", epoch),
                 **self.iter_batch("val", epoch),
             }
-            if early_stopper.check(metrics):
+            if early_stopper.check(epoch, metrics):
                 break
             schedule_lr(epoch, metrics)
         save_hparams()
