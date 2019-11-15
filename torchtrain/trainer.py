@@ -117,7 +117,7 @@ class Trainer:
         state_dict["scheduler"] = (
             self.scheduler.state_dict() if self.scheduler else None
         )
-        for phase, data in self.data_iter:
+        for phase, data in self.data_iter.items():
             state_dict[phase] = (
                 data.state_dict() if hasattr(data, "state_dict") else None
             )
@@ -133,7 +133,7 @@ class Trainer:
         self.optimizer.load_state_dict(state_dict["optimizer"])
         if self.scheduler:
             self.scheduler.load_state_dict(state_dict["scheduler"])
-        for phase, data in self.data_iter:
+        for phase, data in self.data_iter.items():
             if hasattr(data, "load_state_dict"):
                 self.data_iter[phase].load_state_dict(state_dict[phase])
 
