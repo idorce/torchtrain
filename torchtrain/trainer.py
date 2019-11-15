@@ -115,8 +115,9 @@ class Trainer:
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
         }
-        if self.scheduler:
-            state_dict["scheduler"] = self.scheduler.state_dict()
+        state_dict["scheduler"] = (
+            self.scheduler.state_dict() if self.scheduler else None
+        )
         for phase, data in self.data_iter:
             state_dict[phase] = (
                 data.state_dict() if hasattr(data, "state_dict") else None
