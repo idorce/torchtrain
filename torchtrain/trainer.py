@@ -78,9 +78,10 @@ class Trainer:
         self.metrics_to_save = metrics_to_save
         self.batch_to_xy = batch_to_xy
         self.configure()
-        self.distribute_model()
-        self.load_state_dict()
         self.writer = SummaryWriter(self.config["save_path"])
+        self.distribute_model()
+        if self.config["start_ckp_path"]:
+            self.load_state_dict()
 
     def configure(self):
         self.config = defaultdict(bool, self.config)
@@ -124,10 +125,12 @@ class Trainer:
             )
         torch.save(state_dict, self.config["checkpoint_path"])
 
-    def load_state_dict(self):
-        if self.config["start_ckp_path"]:
-            state_dict = torch.load(self.config["checkpoint_path"])
+    def load_state_dict(self, checkpoint_path, model_only=False):
+        if checkpoint_path:
+            state_dict = torch.load(checkpoint_path)
             self.model.load_state_dict(state_dict["model"])
+            if model_only:
+                return
             self.optimizer.load_state_dict(state_dict["optimizer"])
             if self.scheduler:
                 self.scheduler.load_state_dict(state_dict["scheduler"])
@@ -219,7 +222,7 @@ class Trainer:
     def test(self, checkpoint_path=None):
         if not checkpoint_path:
             checkpoint_path = self.config["checkpoint_path"]
-        self.model = utils.load_state_dict(self.model, checkpoint_path)
+        self.load_state_dict(self.model, checkpoint_path, model_only=True)
         metrics_test = self.iter_batch("test")
         self.writer.add_hparams(
             utils.filter_dict(self.config, self.hparams_to_save), metrics_test
