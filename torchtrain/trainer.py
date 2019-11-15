@@ -105,10 +105,9 @@ class Trainer:
         self.config["n_parameters"] = utils.count_parameters(self.model)
 
     def distribute_model(self):
-        if self.config["device"] != "cpu":
-            self.model = torch.nn.DataParallel(
-                self.model, device_ids=eval(self.config["cuda_list"])
-            ).to(self.config["device"])
+        self.model = torch.nn.DataParallel(
+            self.model, device_ids=eval(self.config["cuda_list"])
+        ).to(self.config["device"])
 
     def save_state_dict(self):
         state_dict = {
