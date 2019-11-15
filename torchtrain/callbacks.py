@@ -1,10 +1,7 @@
-from .utils import save_model
-
-
 class EarlyStop:
-    def __init__(self, config, model):
-        self.config = config
-        self.model = model
+    def __init__(self, trainer):
+        self.trainer = trainer
+        self.config = trainer.config
         self.patience = self.config["early_stop_patience"]
         self.best_metric = (
             float("inf")
@@ -25,7 +22,7 @@ class EarlyStop:
             self.patience = self.config["early_stop_patience"]
             if self.config["early_stop_verbose"]:
                 print("Save best-so-far model state_dict...")
-            save_model(self.model, self.config["checkpoint_path"])
+            self.trainer.save_state_dict()
             self.best_metrics = metrics
         else:
             self.patience -= 1

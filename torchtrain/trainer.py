@@ -35,24 +35,24 @@ class Trainer:
            Accumulate gradient for given batches, then backward. Default to 1.
         'train_one_epoch' : bool, optional
             If True, only train one epoch for testing code. Default to False.
-        'start_epoch', 'start_ckp_path' : int, str, optional
-            start_epoch is default to 1, otherwise must specify start_ckp_path.
+        'start_ckp_path' : str, optional
+            If specified, load checkpoint at the beginning.
         'grad_clip_norm' : float, optional
             If greater than 0, apply gradient clipping. Default to 0.
     data_iter : dict
         'train', 'val', 'test' : iterator
             Data iterators should be on the right device beforehand.
-    model, optimizer : torch
-        PyTorch model, optimizer.
+    model : torch
+    optimizer : torch
     criteria : dict
         Other criterions will be calculated as well.
         'loss' : callable
             Calculate loss for `backward()`.
     scheduler : torch, optional
-        PyTorch scheduler.
-    hparams_to_save, metrics_to_save : list[str]
+    hparams_to_save : list[str], optional
+    metrics_to_save : list[str], optional
         Save to tensorboard hparams. Default to not save hparams.
-    batch_to_xy : callable
+    batch_to_xy : callable, optional
         Will be used as `inputs, labels = self.batch_to_xy(batch, phase)`.
     """
 
@@ -77,30 +77,65 @@ class Trainer:
         self.hparams_to_save = hparams_to_save
         self.metrics_to_save = metrics_to_save
         self.batch_to_xy = batch_to_xy
-        self.config = self.configure(self.config)
-        self.model = utils.prepare_model(self.model, self.config)
+
+        self.configure()
+        self.distribute_model()
+        self.load_state_dict()
+
         self.writer = SummaryWriter(self.config["save_path"])
 
-    def configure(self, config):
-        config = defaultdict(bool, config)
-        config["device"] = (
-            "cuda:" + config["cuda_list"][0]
-            if (torch.cuda.is_available() and config["cuda_list"])
+    def configure(self):
+        self.config = defaultdict(bool, self.config)
+
+        self.config["device"] = (
+            "cuda:" + self.config["cuda_list"][0]
+            if (torch.cuda.is_available() and self.config["cuda_list"])
             else "cpu"
         )
-        config["save_path"] = os.path.join(
-            config["save_path"], datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+        self.config["save_path"] = os.path.join(
+            self.config["save_path"],
+            datetime.now().strftime("%Y_%m_%d_%H_%M_%S"),
         )
-        config["checkpoint_path"] = os.path.join(
-            config["save_path"], "checkpoint.pt"
+        self.config["checkpoint_path"] = os.path.join(
+            self.config["save_path"], "checkpoint.pt"
         )
-        if config["train_one_epoch"]:
-            config["max_train_epoch"] = 1
-        config = utils.one_if_not_set(
-            config, ["grad_accumulate_batch", "start_epoch"]
+        if self.config["train_one_epoch"]:
+            self.config["max_train_epoch"] = 1
+        self.config = utils.one_if_not_set(
+            self.config, ["grad_accumulate_batch", "start_epoch"]
         )
-        config["n_parameters"] = utils.count_parameters(self.model)
-        return config
+        self.config["n_parameters"] = utils.count_parameters(self.model)
+
+    def distribute_model(self):
+        if self.config["device"] != "cpu":
+            self.model = torch.nn.DataParallel(
+                self.model, device_ids=eval(self.config["cuda_list"])
+            )
+            self.model = self.model.to(self.config["device"])
+
+    def save_state_dict(self):
+        state_dict = {
+            "model": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+        }
+        if self.scheduler:
+            state_dict["scheduler"] = self.scheduler.state_dict()
+        for phase, data in self.data_iter:
+            state_dict[phase] = (
+                data.state_dict() if hasattr(data, "state_dict") else None
+            )
+        torch.save(state_dict, self.config["checkpoint_path"])
+
+    def load_state_dict(self):
+        if self.config["start_ckp_path"]:
+            state_dict = torch.load(self.config["checkpoint_path"])
+            self.model.load_state_dict(state_dict["model"])
+            self.optimizer.load_state_dict(state_dict["optimizer"])
+            if self.scheduler:
+                self.scheduler.load_state_dict(state_dict["scheduler"])
+            for phase, data in self.data_iter:
+                if hasattr(data, "load_state_dict"):
+                    self.data_iter[phase].load_state_dict(state_dict[phase])
 
     def iter_batch(self, phase, epoch=1):
         """Iterate batches for one epoch."""
@@ -151,7 +186,7 @@ class Trainer:
     def train(self):
         """Train and validate."""
 
-        early_stopper = EarlyStop(self.config, self.model)
+        early_stopper = EarlyStop(self)
 
         def schedule_lr(epoch, metrics):
             if self.scheduler:
@@ -188,7 +223,7 @@ class Trainer:
     def test(self, checkpoint_path=None):
         if not checkpoint_path:
             checkpoint_path = self.config["checkpoint_path"]
-        self.model = utils.load_model(self.model, checkpoint_path)
+        self.model = utils.load_state_dict(self.model, checkpoint_path)
         metrics_test = self.iter_batch("test")
         self.writer.add_hparams(
             utils.filter_dict(self.config, self.hparams_to_save), metrics_test
