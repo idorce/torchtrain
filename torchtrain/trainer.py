@@ -108,8 +108,7 @@ class Trainer:
         if self.config["device"] != "cpu":
             self.model = torch.nn.DataParallel(
                 self.model, device_ids=eval(self.config["cuda_list"])
-            )
-            self.model = self.model.to(self.config["device"])
+            ).to(self.config["device"])
 
     def save_state_dict(self):
         state_dict = {
