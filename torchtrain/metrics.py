@@ -10,7 +10,11 @@ class AverageAggregator:
 
     def update(self, outputs, labels):
         self.batch_score = self.criterion(outputs, labels)
-        batch_value = self.batch_score.item()
+        batch_value = (
+            self.batch_score.item()
+            if hasattr(self.batch_score, "item")
+            else self.batch_score
+        )
         batch_size = labels.size(0)
         self.sum += batch_value * batch_size
         self.count += batch_size
