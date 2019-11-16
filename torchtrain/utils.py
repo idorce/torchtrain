@@ -3,7 +3,18 @@ import torch
 
 
 def filter_dict(d, to_save):
-    return {k: v for k, v in d.items() if k in to_save} if to_save else dict(d)
+    def is_tensorboard_store_type(v):
+        return type(v) in {int, float, str, bool, torch.Tensor}
+
+    return (
+        {
+            k: v
+            for k, v in d.items()
+            if ((k in set(to_save)) and is_tensorboard_store_type(v))
+        }
+        if to_save
+        else {k: v for k, v in d.items() if is_tensorboard_store_type(v)}
+    )
 
 
 def count_parameters(model):
