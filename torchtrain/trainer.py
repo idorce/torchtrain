@@ -17,10 +17,13 @@ class Trainer:
     ----------
     config : dict
         'max_train_epoch' : int
+
         'early_stop_patience' : int
+
         'watching_metric' : str
             Metric to monitor for early stop and lr scheduler.
         'watch_mode' : str, ['min', 'max']
+
         'cuda_list' : str
             E.g. '1,3', ','. Will be used like `config["cuda_list"][0]` and
             `eval(config["cuda_list"])`.
@@ -43,13 +46,17 @@ class Trainer:
         'train', 'val', 'test' : iterator
             Data iterators should be on the right device beforehand.
     model : torch
+
     optimizer : torch
+
     criteria : dict
-        Other criterions will be calculated as well.
         'loss' : callable
             Calculate loss for `backward()`.
+        Other criterions will be calculated as well.
     scheduler : torch, optional
+
     hparams_to_save : list[str], optional
+
     metrics_to_save : list[str], optional
         Save to tensorboard hparams. Default to not save hparams.
     batch_to_xy : callable, optional
