@@ -35,7 +35,7 @@ class Trainer:
         'tqdm' : bool, optional
             If True, tqdm progress bar for batch iteration. Default to False.
         'grad_accumulate_batch' : int, optional
-           Accumulate gradient for given batches, then backward. Default to 1.
+            Accumulate gradient for given batches, then backward. Default to 1.
         'train_one_epoch' : bool, optional
             If True, only train one epoch for testing code. Default to False.
         'start_ckp_path' : str, optional
