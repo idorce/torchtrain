@@ -3,17 +3,15 @@ import torch
 
 
 def filter_dict(d, to_save):
-    def is_tensorboard_store_type(v):
-        return type(v) in {int, float, str, bool, torch.Tensor}
+    """Filter configs to save as tensorboard hparams."""
+
+    def can_store(k):
+        return type(k) in {int, float, str, bool, torch.Tensor}
 
     return (
-        {
-            k: v
-            for k, v in d.items()
-            if ((k in set(to_save)) and is_tensorboard_store_type(v))
-        }
+        {k: v for k, v in d.items() if ((k in set(to_save)) and can_store(k))}
         if to_save
-        else {k: v for k, v in d.items() if is_tensorboard_store_type(v)}
+        else {k: v for k, v in d.items() if can_store(k)}
     )
 
 
