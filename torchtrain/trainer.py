@@ -13,54 +13,41 @@ from .callbacks import EarlyStop
 class Trainer:
     """Supervised trainer.
 
-    Parameters
-    ----------
-    config : dict
-        'max_train_epoch' : int
-
-        'early_stop_patience' : int
-
-        'watching_metric' : str
-            Metric to monitor for early stop and lr scheduler.
-        'watch_mode' : str, ['min', 'max']
-
-        'cuda_list' : str
-            E.g. '1,3', ','. Will be used like `config["cuda_list"][0]` and
-            `eval(config["cuda_list"])`.
-        'save_path' : str
-            Create a subfolder using current datetime.
-            Best checkpoint and tensorboard logs are saved inside.
-        'early_stop_verbose' : bool, optional
-            If True, early stop print verbose message. Default to False.
-        'tqdm' : bool, optional
-            If True, tqdm progress bar for batch iteration. Default to False.
-        'grad_accumulate_batch' : int, optional
-            Accumulate gradient for given batches, then backward. Default to 1.
-        'train_one_epoch' : bool, optional
-            If True, only train one epoch for testing code. Default to False.
-        'start_ckp_path' : str, optional
-            If specified, load checkpoint at the beginning.
-        'grad_clip_norm' : float, optional
-            If greater than 0, apply gradient clipping. Default to 0.
-    data_iter : dict
-        'train', 'val', 'test' : iterator
-            Data iterators should be on the right device beforehand.
-    model : torch
-
-    optimizer : torch
-
-    criteria : dict
-        'loss' : callable
-            Calculate loss for `backward()`.
-        Other criterions will be calculated as well.
-    scheduler : torch, optional
-
-    hparams_to_save : list[str], optional
-
-    metrics_to_save : list[str], optional
-        Save to tensorboard hparams. Default to not save hparams.
-    batch_to_xy : callable, optional
-        Will be used as `inputs, labels = self.batch_to_xy(batch, phase)`.
+    Args:
+        config (dict):
+            'max_train_epoch' (int):
+            'early_stop_patience' (int):
+            'watching_metric' (str): Metric to monitor for early stop and lr
+                scheduler.
+            'watch_mode' (str): 'min' or 'max'.
+            'cuda_list' (str): Will be used like `config["cuda_list"][0]` and
+                `eval(config["cuda_list"])`. E.g. '1,3', ','.
+            'save_path' (str): Create a subfolder using current datetime.
+                Best checkpoint and tensorboard logs are saved inside.
+            'early_stop_verbose' (bool, optional): If True, early stop print
+                verbose message. Default: False.
+            'tqdm' (bool, optional): If True, tqdm progress bar for batch
+                iteration. Default: False.
+            'grad_accumulate_batch' (int, optional): Accumulate gradient for
+                given batches, then backward. Default: 1.
+            'train_one_epoch' (bool, optional): If True, only train one epoch
+                for testing code. Default: False.
+            'start_ckp_path' (str, optional): If specified, load checkpoint at
+                the beginning.
+            'grad_clip_norm' (float, optional): If greater than 0, apply
+                gradient clipping. Default: 0.
+        data_iter (dict): Keys are 'train', 'val', 'test'. Values are
+            iterators. Data iterators should be on the right device beforehand.
+        model (torch):
+        optimizer (torch):
+        criteria (dict): 'loss' (callable): Calculate loss for `backward()`.
+            Other criterions will be calculated as well.
+        scheduler (torch, optional):
+        hparams_to_save (list[str], optional):
+        metrics_to_save (list[str], optional): Save to tensorboard hparams.
+            Default: not save hparams.
+        batch_to_xy (callable, optional): Will be used as
+            `inputs, labels = self.batch_to_xy(batch, phase)`.
     """
 
     def __init__(
