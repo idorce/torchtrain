@@ -127,7 +127,7 @@ class Trainer:
         self.model.load_state_dict(state_dict["model"])
         if model_only:
             return
-        self.config["start_epoch"] = state_dict["epoch"] + 1
+        self.config["start_epoch"] = state_dict["epoch"]
         self.optimizer.load_state_dict(state_dict["optimizer"])
         if self.scheduler:
             self.scheduler.load_state_dict(state_dict["scheduler"])
