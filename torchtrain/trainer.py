@@ -73,9 +73,9 @@ class Trainer:
         self.batch_to_xy = batch_to_xy
         self.configure()
         self.writer = SummaryWriter(self.config["save_path"])
-        self.distribute_model()
         if self.config["start_ckp_path"]:
             self.load_state_dict(self.config["start_ckp_path"])
+        self.distribute_model()
 
     def configure(self):
         self.config = defaultdict(bool, self.config)
@@ -108,7 +108,7 @@ class Trainer:
     def save_state_dict(self, epoch):
         state_dict = {
             "epoch": epoch,
-            "model": self.model.state_dict(),
+            "model": self.model.module.state_dict(),  # DataParallel.module
             "optimizer": self.optimizer.state_dict(),
         }
         state_dict["scheduler"] = (
