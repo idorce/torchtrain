@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="torchtrain",
-    version="0.3.8",
+    version="0.3.9",
     author="HQ",
     author_email="idorce@outlook.com",
     description="A small tool for PyTorch training",

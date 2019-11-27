@@ -121,6 +121,12 @@ class Trainer:
         torch.save(state_dict, self.config["checkpoint_path"])
 
     def load_state_dict(self, checkpoint_path, model_only=False):
+        def state_to_device(obj):
+            for state in obj.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        state[k] = v.to(self.config["device"])
+
         if not checkpoint_path:
             checkpoint_path = self.config["checkpoint_path"]
         state_dict = torch.load(checkpoint_path)
@@ -129,8 +135,10 @@ class Trainer:
             return
         self.config["start_epoch"] = state_dict["epoch"]
         self.optimizer.load_state_dict(state_dict["optimizer"])
+        state_to_device(self.optimizer)
         if self.scheduler:
             self.scheduler.load_state_dict(state_dict["scheduler"])
+            state_to_device(self.scheduler)
         for phase, data in self.data_iter.items():
             if hasattr(data, "load_state_dict"):
                 self.data_iter[phase].load_state_dict(state_dict[phase])
