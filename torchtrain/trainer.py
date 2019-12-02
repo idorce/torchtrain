@@ -124,7 +124,10 @@ class Trainer:
         if not checkpoint_path:
             checkpoint_path = self.config["checkpoint_path"]
         state_dict = torch.load(checkpoint_path)
-        self.model.load_state_dict(state_dict["model"])
+        if isinstance(self.model, torch.nn.DataParallel):
+            self.model.module.load_state_dict(state_dict["model"])
+        else:
+            self.model.load_state_dict(state_dict["model"])
         if model_only:
             return
         self.config["start_epoch"] = state_dict["epoch"]
@@ -220,9 +223,9 @@ class Trainer:
             schedule_lr(epoch, metrics)
         save_hparams()
 
-    def test(self, checkpoint_path=None):
+    def test(self, checkpoint_path=None, dataset="test"):
         self.load_state_dict(checkpoint_path, model_only=True)
-        metrics_test = self.iter_batch("test")
+        metrics_test = self.iter_batch(dataset)
         self.writer.add_hparams(
             utils.filter_dict(self.config, self.hparams_to_save), metrics_test
         )
