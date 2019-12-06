@@ -146,11 +146,12 @@ class Trainer:
         """Iterate batches for one epoch."""
 
         def rescale_grad():
-            for group in self.optimizer.param_groups:
-                for p in group["params"]:
-                    if p.grad is not None:
-                        p.grad /= self.batch_size_sum
-            self.batch_size_sum = 0
+            if self.batch_size_sum != 0:
+                for group in self.optimizer.param_groups:
+                    for p in group["params"]:
+                        if p.grad is not None:
+                            p.grad /= self.batch_size_sum
+                self.batch_size_sum = 0
 
         def optim_step():
             rescale_grad()
