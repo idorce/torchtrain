@@ -203,7 +203,7 @@ class Trainer:
         self.oom_batch_count = 0  # out of memory
         for batch in data:
             try:
-                one_batch()
+                one_batch(batch)
             except RuntimeError as e:
                 if "out of memory" in str(e):
                     self.optimizer.zero_grad()
