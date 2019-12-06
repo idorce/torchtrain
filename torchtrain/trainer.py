@@ -171,6 +171,7 @@ class Trainer:
                 if write:
                     self.writer.add_scalar(f"{name}/{phase}", metric, epoch)
             self.writer.flush()
+            desc += f" oom: {self.oom_batch_count:3d} "
             data.set_description(desc)
             return metrics
 
@@ -199,8 +200,16 @@ class Trainer:
         data = tqdm(self.data_iter[phase], disable=not self.config["tqdm"])
         self.optimizer.zero_grad()
         self.batch_size_sum = 0
+        self.oom_batch_count = 0  # out of memory
         for batch in data:
-            one_batch()
+            try:
+                one_batch()
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    self.optimizer.zero_grad()
+                    self.oom_batch_count += 1
+                else:
+                    raise e
         optim_step()
         return current_stats(reset=True, write=True)
 
