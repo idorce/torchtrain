@@ -172,7 +172,7 @@ class Trainer:
                 if write:
                     self.writer.add_scalar(f"{name}/{phase}", metric, epoch)
             self.writer.flush()
-            desc += f" oom: {self.oom_batch_count:3d} "
+            desc += f"oom: {self.oom_batch_count:3d} "
             data.set_description(desc)
             return metrics
 
