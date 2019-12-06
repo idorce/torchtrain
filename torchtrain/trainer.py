@@ -145,19 +145,21 @@ class Trainer:
     def iter_batch(self, phase, epoch=1):
         """Iterate batches for one epoch."""
 
+        def rescale_grad():
+            for group in self.optimizer.param_groups:
+                for p in group["params"]:
+                    if p.grad is not None:
+                        p.grad /= self.batch_size_sum
+            self.batch_size_sum = 0
+
         def optim_step():
+            rescale_grad()
             if self.config["grad_clip_norm"] > 0:
                 torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), self.config["grad_clip_norm"]
                 )
             self.optimizer.step()
             self.optimizer.zero_grad()
-
-        def rescale_grad(scale):
-            for group in self.optimizer.param_groups:
-                for p in group["params"]:
-                    if p.grad is not None:
-                        p.grad /= scale
 
         def current_stats(reset=False, write=False):
             metrics = {}
@@ -172,12 +174,7 @@ class Trainer:
             data.set_description(desc)
             return metrics
 
-        is_train = phase == "train"
-        self.model.train(is_train)
-        data = tqdm(self.data_iter[phase], disable=not self.config["tqdm"])
-        self.optimizer.zero_grad()
-        batch_size_sum = 0
-        for batch in data:
+        def one_batch(batch):
             inputs, labels = self.batch_to_xy(batch, phase)
             with torch.set_grad_enabled(is_train):
                 outputs = self.model(inputs)
@@ -187,18 +184,23 @@ class Trainer:
                 if self.config["grad_accumulate_batch"] < 1:
                     self.criteria["loss"].get_batch_score().backward()
                 else:
-                    loss = self.criteria["loss"].get_batch_score()
                     batch_size = labels.size(0)
-                    batch_size_sum += batch_size
-                    loss *= batch_size
+                    self.batch_size_sum += batch_size
+                    loss = self.criteria["loss"].get_batch_score() * batch_size
                     loss.backward()
                     if (data.n + 1) % self.config[
                         "grad_accumulate_batch"
                     ] == 0:
-                        rescale_grad(batch_size_sum)
                         optim_step()
-                        batch_size_sum = 0
             current_stats()
+
+        is_train = phase == "train"
+        self.model.train(is_train)
+        data = tqdm(self.data_iter[phase], disable=not self.config["tqdm"])
+        self.optimizer.zero_grad()
+        self.batch_size_sum = 0
+        for batch in data:
+            one_batch()
         optim_step()
         return current_stats(reset=True, write=True)
 
