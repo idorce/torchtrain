@@ -15,7 +15,11 @@ class AverageAggregator:
             if hasattr(self.batch_score, "item")
             else self.batch_score
         )
-        batch_size = labels.size(0)
+        batch_size = (
+            self.criterion.get_batch_size(labels)
+            if hasattr(self.criterion, "get_batch_size")
+            else len(labels)
+        )
         self.sum += batch_value * batch_size
         self.count += batch_size
         self.value = self.sum / self.count

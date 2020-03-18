@@ -1,32 +1,26 @@
 class EarlyStop:
-    def __init__(self, trainer):
-        self.trainer = trainer
-        self.config = trainer.config
-        self.patience = self.config["early_stop_patience"]
-        self.best_metric = (
-            float("inf")
-            if self.config["watch_mode"] == "min"
-            else float("-inf")
-        )
-        self.best_metrics = {}
+    def __init__(self, patience=5, mode="min", verbose=False):
+        self.patience = patience
+        self.patience_now = patience
+        self.mode = mode
+        self.verbose = verbose
+        self.best_score = float("inf") if self.mode == "min" else float("-inf")
+        self.last_score = self.best_score
+        self.best = True
+        self.stop = False
 
-    def check(self, epoch, metrics):
-        metric = metrics[self.config["watching_metric"]]
-        best = (
-            metric < self.best_metric
-            if self.config["watch_mode"] == "min"
-            else metric > self.best_metric
-        )
-        if best:
-            self.best_metric = metric
-            self.patience = self.config["early_stop_patience"]
-            if self.config["early_stop_verbose"]:
+    def is_better(self, now, before):
+        return now < before if self.mode == "min" else now > before
+
+    def check(self, score):
+        self.best = self.is_better(score, self.best_score)
+        if self.best:
+            self.best_score = score
+            if self.verbose:
                 print("Save best-so-far model state_dict...")
-            self.trainer.save_state_dict(epoch)
-            self.best_metrics = metrics
-        else:
-            self.patience -= 1
-        stop = self.patience == 0
-        if stop and self.config["early_stop_verbose"]:
-            print(f"Early stopped! Patience is {self.patience}.")
-        return stop
+        better = self.best or self.is_better(score, self.last_score)
+        self.last_score = score
+        self.patience_now = self.patience if better else (self.patience_now - 1)
+        self.stop = self.patience_now == 0
+        if self.stop and self.verbose:
+            print(f"Early stop! Patience is {self.patience}.")
