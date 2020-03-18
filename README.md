@@ -12,7 +12,7 @@ pip install torchtrain
 
 - Avoid boilerplate code for training.
 - Stepwise training.
-- Automatic tensorboard logging, and tqdm bar.
+- Automatic TensorBoard logging, and tqdm bar.
 - DataParallel.
 - Early stop.
 - Save and load checkpoint. Continue training.
