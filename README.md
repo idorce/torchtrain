@@ -1,4 +1,4 @@
-# torchtrain 🔥💪
+# 🔥 torchtrain 💪
 
 A small tool for PyTorch training.
 
