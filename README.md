@@ -13,16 +13,20 @@ pip install torchtrain
 - Avoid boilerplate code for training.
 - Stepwise training.
 - Automatic TensorBoard logging, and tqdm bar.
+- Count model parameters and save hyperparameters.
 - DataParallel.
 - Early stop.
 - Save and load checkpoint. Continue training.
 - Catch out of memory exceptions to avoid breaking training.
+- Gradient accumulation.
+- Gradient clipping.
+- Only run few epochs, steps and batches for code test.
 
 ## Example
 
 Check doc string of [`Trainer` class](https://github.com/idorce/torchtrain/blob/master/torchtrain/trainer.py) for detailed configurations.
 
-An incomplete example：
+An incomplete minimal example:
 
 ```python
 data_iter = get_data()
