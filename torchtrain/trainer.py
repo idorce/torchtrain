@@ -2,6 +2,7 @@ import os
 from collections import defaultdict
 
 import torch
+from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -42,14 +43,15 @@ class Trainer:
             'grad_clip_norm' (float, optional): If greater than 0, apply
                 gradient clipping. Default: 0.
         data_iter (dict): Keys are 'train', 'val', 'test'. Value is iterator.
-        model (torch):
-        optimizer (torch):
+        model (torch): PyTorch nn.Module.
         criteria (dict): 'loss' (callable): Calculate loss for `backward()`.
             Other criterions will be calculated as well.
-        scheduler (torch, optional):
-        hparams_to_save (list[str], optional):
-        metrics_to_save (list[str], optional): Save to tensorboard hparams.
+        optimizer (torch, optional): Default: Adam.
+        scheduler (torch, optional): Default: None.
+        hparams_to_save (list[str], optional): Save to tensorboard hparams tab.
             Default: Save all.
+        metrics_to_save (list[str], optional): Save to tensorboard hparams tab
+            as metrics. Default: Save all.
         batch_to_xy (callable, optional): Will be used as
             `inputs, labels = self.batch_to_xy(batch, phase)`.
         get_batch_size (callable, optional): Will be used as
@@ -61,8 +63,8 @@ class Trainer:
         cfg,
         data_iter,
         model,
-        optimizer,
         criteria,
+        optimizer=None,
         scheduler=None,
         hparams_to_save=None,
         metrics_to_save=None,
@@ -117,6 +119,8 @@ class Trainer:
         self.default("grad_accum_batch", 1)
         self.cfg["start_n"] = 1
         self.cfg["n_params"] = utils.count_params(self.model)
+        if self.optimizer is None:
+            self.optimizer = Adam(self.model.parameters())
 
     def save_state_dict(self, n):
         state_dict = {
@@ -140,7 +144,7 @@ class Trainer:
         else:
             self.model.load_state_dict(state_dict["model"])
         if model_only:
-            return
+            return self.model
         if "n" in state_dict:
             self.cfg["start_n"] = state_dict["n"] + 1
         if "optimizer" in state_dict:
@@ -222,7 +226,9 @@ class Trainer:
         self.optimizer.zero_grad()
         self.batch_size_accum = 0
         self.oom_batch_count = 0  # out of memory
-        data = tqdm(self.data_iter[phase], disable=disable_tqdm or not self.cfg["tqdm"])
+        data = tqdm(
+            self.data_iter[phase], disable=disable_tqdm or not self.cfg["tqdm"]
+        )
         for batch in data:
             if self.cfg["train_few"] and data.n >= 3:
                 break
@@ -256,7 +262,10 @@ class Trainer:
             self.cfg["patience"], self.cfg["watch_mode"], self.cfg["verbose"]
         )
         for n in range(self.cfg["start_n"], self.cfg["max_n"] + 1):
-            metrics = {**self.one_epoch("train", n), **self.one_epoch("val", n)}
+            metrics = {
+                **self.one_epoch("train", n),
+                **self.one_epoch("val", n),
+            }
             early_stopper.check(metrics[self.cfg["watch_metric"]])
             if early_stopper.best:
                 self.save_state_dict(n)
@@ -289,7 +298,9 @@ class Trainer:
                 metrics_train = self.stats_now(
                     "train", data.n + 1, data, reset=True, write=True
                 )
-                metrics_val = self.one_epoch("val", data.n + 1, disable_tqdm=True)
+                metrics_val = self.one_epoch(
+                    "val", data.n + 1, disable_tqdm=True
+                )
                 metrics = {**metrics_train, **metrics_val}
                 data.write(f"Val on step {data.n + 1:6d}: " + str(metrics))
                 early_stopper.check(metrics[self.cfg["watch_metric"]])
