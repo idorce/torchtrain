@@ -2,12 +2,6 @@
 
 A small tool for PyTorch training.
 
-## Install
-
-```
-pip install torchtrain
-```
-
 ## Features
 
 - Avoid boilerplate code for training.
@@ -21,6 +15,12 @@ pip install torchtrain
 - Gradient accumulation.
 - Gradient clipping.
 - Only run few epochs, steps and batches for code test.
+
+## Install
+
+```
+pip install torchtrain
+```
 
 ## Example
 
