@@ -33,7 +33,7 @@ data_iter = get_data()
 model = Bert()
 optimizer = Adam(model.parameters(), lr=cfg["lr"])
 criteria = {"loss": AverageAggregator(BCELoss())}
-trainer = Trainer(cfg, data_iter, model, optimizer, criteria)
+trainer = Trainer(model, data_iter, criteria, cfg, optimizer)
 trainer.train(stepwise=True)
 ```
 
@@ -104,11 +104,11 @@ def run(cfg):
     )
     criteria = {"loss": AverageAggregator(BCELoss())}
     trainer = Trainer(
-        cfg,
-        data_iter,
         model,
-        optimizer,
+        data_iter,
         criteria,
+        cfg,
+        optimizer,
         scheduler,
         get_batch_size=get_batch_size,
     )
