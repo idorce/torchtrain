@@ -216,6 +216,8 @@ class Trainer:
             desc += f"{name}/{phase:5s}: {metric:.6f} "
             if write:
                 self.writer.add_scalar(f"{name}/{phase}", metric, n)
+        if write:
+            self.writer.add_scalar("oom", self.oom_batch_count, n)
         self.writer.flush()
         desc += f"oom: {self.oom_batch_count:3d} "
         tqdm_iter.set_description(desc)
@@ -295,8 +297,7 @@ class Trainer:
                 )
                 metrics_val = self.one_epoch("val", data.n + 1, disable_tqdm=True)
                 metrics = {**metrics_train, **metrics_val}
-                if self.cfg["verbose"]:
-                    data.write(f"Val on step {data.n + 1:6d}: " + str(metrics))
+                data.write(f"Val on step {data.n + 1:6d}: " + str(metrics))
                 early_stopper.check(metrics[self.cfg["watch_metric"]])
                 if early_stopper.best:
                     self.save_state_dict(data.n + 1)
