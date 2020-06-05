@@ -139,7 +139,11 @@ class Trainer:
     def load_state_dict(self, ckp_path=None, model_only=False):
         if not ckp_path:
             return
-        state_dict = torch.load(ckp_path)
+        state_dict = (
+            torch.load(ckp_path)
+            if torch.cuda.is_available()
+            else torch.load(ckp_path, map_location=torch.device("cpu"))
+        )
         if isinstance(self.model, torch.nn.DataParallel):
             self.model.module.load_state_dict(state_dict["model"])
         else:
