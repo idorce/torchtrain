@@ -82,7 +82,8 @@ class Trainer:
         self.batch_to_xy = batch_to_xy
         self.get_batch_size = get_batch_size
         self.configure()
-        self.writer = SummaryWriter(self.cfg["save_path"])
+        if self.data_iter:
+            self.writer = SummaryWriter(self.cfg["save_path"])
         self.load_state_dict(self.cfg["start_ckp_path"])
         self.model = utils.distribute_model(
             self.model, self.cfg["device"], self.cfg["cuda_list"]
