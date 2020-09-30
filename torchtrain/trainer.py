@@ -54,8 +54,6 @@ class Trainer:
             as metrics. Default: Save all.
         batch_to_xy (callable, optional): Will be used as
             `inputs, labels = self.batch_to_xy(batch, phase)`.
-        get_batch_size (callable, optional): Will be used as
-            `batch_size = self.get_batch_size(labels)`.
     """
 
     def __init__(
@@ -69,7 +67,6 @@ class Trainer:
         hparams_to_save=None,
         metrics_to_save=None,
         batch_to_xy=lambda batch, phase: batch,
-        get_batch_size=lambda labels: len(labels),
     ):
         self.cfg = cfg
         self.data_iter = data_iter
@@ -80,7 +77,6 @@ class Trainer:
         self.hparams_to_save = hparams_to_save
         self.metrics_to_save = metrics_to_save
         self.batch_to_xy = batch_to_xy
-        self.get_batch_size = get_batch_size
         self.configure()
         if self.data_iter:
             self.writer = SummaryWriter(self.cfg["save_path"])
@@ -199,7 +195,11 @@ class Trainer:
                     self.criteria["loss"].get_batch_score().backward()
                     self.optim_step()
                 else:
-                    batch_size = self.get_batch_size(labels)
+                    batch_size = (
+                        self.criterion.get_batch_size(labels)
+                        if hasattr(self.criterion, "get_batch_size")
+                        else len(labels)
+                    )
                     self.batch_size_accum += batch_size
                     loss = self.criteria["loss"].get_batch_score() * batch_size
                     loss.backward()
