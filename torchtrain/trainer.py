@@ -238,7 +238,8 @@ class Trainer:
             if self.cfg["train_few"] and data.n >= 3:
                 break
             self.one_batch(batch, phase, data.n)
-            self.stats_now(phase, epoch, data)
+            if not disable_tqdm:
+                self.stats_now(phase, epoch, data)
         self.optim_step()
         return self.stats_now(phase, epoch, data, reset=True, write=True)
 
@@ -296,10 +297,10 @@ class Trainer:
             if data.n >= self.cfg["max_n"]:
                 break
             self.one_batch(batch, "train", data.n)
+            metrics_train = self.stats_now(
+                "train", data.n + 1, data, reset=True, write=True
+            )
             if utils.every_n_steps(data.n, self.cfg["val_step"]):
-                metrics_train = self.stats_now(
-                    "train", data.n + 1, data, reset=True, write=True
-                )
                 metrics_val = self.one_epoch("val", data.n + 1, disable_tqdm=True)
                 metrics = {**metrics_train, **metrics_val}
                 data.write(f"Val on step {data.n + 1:6d}: " + str(metrics))
@@ -309,8 +310,6 @@ class Trainer:
                     best_metrics = metrics
                 elif early_stopper.stop:
                     break
-            else:
-                self.stats_now("train", data.n + 1, data, write=True)
             self.schedule_lr(data.n + 1)
         self.optim_step()
         self.save_hparams(best_metrics)
