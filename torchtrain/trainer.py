@@ -249,7 +249,8 @@ class Trainer:
             lr = self.optimizer.param_groups[0]["lr"]
             self.writer.add_scalar("lr", lr, n)
             if isinstance(self.scheduler, ReduceLROnPlateau):
-                self.scheduler.step(schedule_input)
+                if schedule_input is not None:
+                    self.scheduler.step(schedule_input)
             else:
                 self.scheduler.step()
 
@@ -304,6 +305,8 @@ class Trainer:
             if utils.every_n_steps(data.n, self.cfg["val_step"]):
                 metrics_val = self.one_epoch("val", data.n + 1, disable_tqdm=True)
                 metrics = {**metrics_train, **metrics_val}
+                if isinstance(self.scheduler, ReduceLROnPlateau):
+                    self.schedule_lr(data.n + 1, metrics[self.cfg["watch_metric"]])
                 data.write(f"Val on step {data.n + 1:6d}: " + str(metrics))
                 early_stopper.check(metrics[self.cfg["watch_metric"]])
                 if early_stopper.best:
