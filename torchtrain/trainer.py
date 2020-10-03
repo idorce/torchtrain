@@ -80,6 +80,7 @@ class Trainer:
         self.configure()
         if self.data_iter:
             self.writer = SummaryWriter(self.cfg["save_path"])
+            self.save_hparams()
         self.load_state_dict(self.cfg["start_ckp_path"])
         self.model = utils.distribute_model(
             self.model, self.cfg["device"], self.cfg["cuda_list"]
@@ -252,7 +253,7 @@ class Trainer:
             else:
                 self.scheduler.step()
 
-    def save_hparams(self, metrics):
+    def save_hparams(self, metrics={"loss/train": 0, "loss/val": 0}):
         self.writer.add_hparams(
             utils.filter_dict(self.cfg, self.hparams_to_save),
             utils.filter_dict(metrics, self.metrics_to_save),
