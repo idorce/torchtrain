@@ -155,10 +155,10 @@ class Trainer:
                 for k, v in state.items():
                     if isinstance(v, torch.Tensor):
                         state[k] = v.to(self.cfg["device"])
-        if self.scheduler and "scheduler" in state_dict:
+        if self.scheduler and ("scheduler" in state_dict):
             self.scheduler.load_state_dict(state_dict["scheduler"])
         for phase, data in self.data_iter.items():
-            if hasattr(data, "load_state_dict") and phase in state_dict:
+            if hasattr(data, "load_state_dict") and (phase in state_dict):
                 self.data_iter[phase].load_state_dict(state_dict[phase])
 
     def _optim_step(self):
