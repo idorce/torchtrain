@@ -1,4 +1,5 @@
 import os
+import warnings
 from collections import defaultdict
 
 import torch
@@ -127,7 +128,13 @@ class Trainer:
             "optimizer": self.optimizer.state_dict(),
         }
         if self.scheduler:
-            state_dict["scheduler"] = self.scheduler.state_dict()
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message="Please also save or load the state of the optimzer when saving or loading the scheduler.",
+                    category=UserWarning,
+                )
+                state_dict["scheduler"] = self.scheduler.state_dict()
         for phase, data in self.data_iter.items():
             if hasattr(data, "state_dict"):
                 state_dict[phase] = data.state_dict()
@@ -156,7 +163,13 @@ class Trainer:
                     if isinstance(v, torch.Tensor):
                         state[k] = v.to(self.cfg["device"])
         if self.scheduler and ("scheduler" in state_dict):
-            self.scheduler.load_state_dict(state_dict["scheduler"])
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message="Please also save or load the state of the optimzer when saving or loading the scheduler.",
+                    warnings=UserWarning,
+                )
+                self.scheduler.load_state_dict(state_dict["scheduler"])
         for phase, data in self.data_iter.items():
             if hasattr(data, "load_state_dict") and (phase in state_dict):
                 self.data_iter[phase].load_state_dict(state_dict[phase])
