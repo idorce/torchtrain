@@ -108,7 +108,7 @@ class Trainer:
         if "model_name" in self.cfg:
             self._join_path("save_path", self.cfg["model_name"])
         self._join_path("save_path", utils.now())
-        self._join_path("ckp_path", "ckp.pt", "save_path")
+        self._join_path("ckp_path", "ckp", "save_path")
         self._default("cuda_list", "")
         self.cfg["device"] = utils.get_device(self.cfg["cuda_list"])
         self._default("patience", float("inf"))
@@ -138,7 +138,7 @@ class Trainer:
         for phase, data in self.data_iter.items():
             if hasattr(data, "state_dict"):
                 state_dict[phase] = data.state_dict()
-        torch.save(state_dict, self.cfg["ckp_path"])
+        torch.save(state_dict, f"{self.cfg['ckp_path']}_{utils.now()}.pt")
 
     def _load_state_dict(self, ckp_path=None, model_only=False):
         if not ckp_path:
@@ -222,7 +222,7 @@ class Trainer:
         except RuntimeError as e:
             if "out of memory" in str(e):
                 self.optimizer.zero_grad()
-                self.oom_batch_count += 1
+                self.oom_batch_count[phase] += 1
             else:
                 raise e
 
@@ -236,24 +236,25 @@ class Trainer:
             if write:
                 self.writer.add_scalar(f"{name}/{phase}", metric, n)
         if write:
-            self.writer.add_scalar("oom", self.oom_batch_count, n)
+            self.writer.add_scalar(f"oom/{phase}", self.oom_batch_count[phase], n)
         self.writer.flush()
-        desc += f"oom: {self.oom_batch_count:3d} "
+        desc += f"oom: {self.oom_batch_count[phase]:3d} "
         tqdm_iter.set_description(desc)
         return metrics
 
-    def _one_epoch(self, phase, epoch=1, disable_tqdm=False):
+    def _one_epoch(self, phase, epoch=1, leave_tqdm=True):
         """Iterate batches for one epoch."""
         self.optimizer.zero_grad()
         self.batch_size_accum = 0
-        self.oom_batch_count = 0  # out of memory
-        data = tqdm(self.data_iter[phase], disable=disable_tqdm or not self.cfg["tqdm"])
+        self.oom_batch_count[phase] = 0  # out of memory
+        data = tqdm(
+            self.data_iter[phase], leave=leave_tqdm, disable=not self.cfg["tqdm"]
+        )
         for batch in data:
             if self.cfg["train_few"] and data.n >= 3:
                 break
             self._one_batch(batch, phase, data.n)
-            if not disable_tqdm:
-                self._stats_now(phase, epoch, data)
+            self._stats_now(phase, epoch, data)
         self._optim_step()
         return self._stats_now(phase, epoch, data, reset=True, write=True)
 
@@ -282,12 +283,14 @@ class Trainer:
         early_stopper = EarlyStop(
             self.cfg["patience"], self.cfg["watch_mode"], self.cfg["verbose"]
         )
+        self.oom_batch_count = {"train": 0, "val": 0, "test": 0}
         for n in range(self.cfg["start_n"], self.cfg["max_n"] + 1):
             metrics = {**self._one_epoch("train", n), **self._one_epoch("val", n)}
             early_stopper.check(metrics[self.cfg["watch_metric"]])
-            if early_stopper.best:
+            if early_stopper.better:
                 self._save_state_dict(n)
-                best_metrics = metrics
+                if early_stopper.best:
+                    best_metrics = metrics
             elif early_stopper.stop:
                 break
             self._schedule_lr(n, metrics[self.cfg["watch_metric"]])
@@ -301,7 +304,7 @@ class Trainer:
         )
         self.optimizer.zero_grad()
         self.batch_size_accum = 0
-        self.oom_batch_count = 0  # out of memory
+        self.oom_batch_count = {"train": 0, "val": 0, "test": 0}  # out of memory
         data = tqdm(
             utils.repeat(self.data_iter["train"]),
             total=self.cfg["max_n"],
@@ -316,15 +319,17 @@ class Trainer:
                 "train", data.n + 1, data, reset=True, write=True
             )
             if utils.every_n_steps(data.n, self.cfg["val_step"]):
-                metrics_val = self._one_epoch("val", data.n + 1, disable_tqdm=True)
+                metrics_val = self._one_epoch("val", data.n + 1, leave_tqdm=None)
                 metrics = {**metrics_train, **metrics_val}
                 if isinstance(self.scheduler, ReduceLROnPlateau):
                     self._schedule_lr(data.n + 1, metrics[self.cfg["watch_metric"]])
-                data.write(f"Val on step {data.n + 1:6d}: " + str(metrics))
+                if self.cfg["verbose"]:
+                    data.write(f"Val on step {data.n + 1:6d}: " + str(metrics))
                 early_stopper.check(metrics[self.cfg["watch_metric"]])
-                if early_stopper.best:
+                if early_stopper.better:
                     self._save_state_dict(data.n + 1)
-                    best_metrics = metrics
+                    if early_stopper.best:
+                        best_metrics = metrics
                 elif early_stopper.stop:
                     break
             self._schedule_lr(data.n + 1)
@@ -332,10 +337,9 @@ class Trainer:
         self._save_hparams(best_metrics)
         return best_metrics
 
-    def test(self, ckp_path=None, dataset="test"):
-        if ckp_path is None:
-            ckp_path = self.cfg["ckp_path"]
+    def test(self, ckp_path, dataset="val"):
         self._load_state_dict(ckp_path, model_only=True)
+        self.oom_batch_count = {"train": 0, "val": 0, "test": 0}
         metrics_test = self._one_epoch(dataset)
         self._save_hparams(metrics_test)
         return metrics_test
