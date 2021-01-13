@@ -79,10 +79,10 @@ class Trainer:
         self.metrics_to_save = metrics_to_save
         self.batch_to_xy = batch_to_xy
         self._configure()
+        self._load_state_dict(self.cfg["start_ckp_path"])
         if self.data_iter:
             self.writer = SummaryWriter(self.cfg["save_path"])
             self._save_hparams()
-        self._load_state_dict(self.cfg["start_ckp_path"])
         self.model = utils.distribute_model(
             self.model, self.cfg["device"], self.cfg["cuda_list"]
         )
@@ -173,6 +173,10 @@ class Trainer:
         for phase, data in self.data_iter.items():
             if hasattr(data, "load_state_dict") and (phase in state_dict):
                 self.data_iter[phase].load_state_dict(state_dict[phase])
+        # Change save_path
+        p = os.path.dirname(self.cfg["start_ckp_path"])
+        if len(os.path.basename(p)) == len(utils.now()):
+            self.cfg["save_path"] = p
 
     def _optim_step(self):
         # rescale grad
@@ -268,11 +272,15 @@ class Trainer:
             else:
                 self.scheduler.step()
 
-    def _save_hparams(self, metrics={"loss/train": 0, "loss/val": 0}):
-        self.writer.add_hparams(
-            utils.filter_dict(self.cfg, self.hparams_to_save),
-            utils.filter_dict(metrics, self.metrics_to_save),
-        )
+    def _save_hparams(self, metrics=None):
+        hparams = utils.filter_dict(self.cfg, self.hparams_to_save)
+        if metrics is None:
+            cfg = "|cfg|value|\n|-|-|\n"
+            cfg += "\n".join(f"|{k}|{v}|" for k, v in hparams.items())
+            self.writer.add_text("cfg", cfg, 0)
+        else:
+            metrics = utils.filter_dict(metrics, self.metrics_to_save)
+            self.writer.add_hparams(hparams, metrics)
         self.writer.flush()
 
     def train(self, stepwise=False):
@@ -287,10 +295,9 @@ class Trainer:
         for n in range(self.cfg["start_n"], self.cfg["max_n"] + 1):
             metrics = {**self._one_epoch("train", n), **self._one_epoch("val", n)}
             early_stopper.check(metrics[self.cfg["watch_metric"]])
-            if early_stopper.better:
+            if early_stopper.best:
                 self._save_state_dict(n)
-                if early_stopper.best:
-                    best_metrics = metrics
+                best_metrics = metrics
             elif early_stopper.stop:
                 break
             self._schedule_lr(n, metrics[self.cfg["watch_metric"]])
@@ -326,10 +333,9 @@ class Trainer:
                 if self.cfg["verbose"]:
                     data.write(f"Val on step {data.n + 1:6d}: " + str(metrics))
                 early_stopper.check(metrics[self.cfg["watch_metric"]])
-                if early_stopper.better:
+                if early_stopper.best:
                     self._save_state_dict(data.n + 1)
-                    if early_stopper.best:
-                        best_metrics = metrics
+                    best_metrics = metrics
                 elif early_stopper.stop:
                     break
             self._schedule_lr(data.n + 1)

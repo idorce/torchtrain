@@ -9,13 +9,13 @@ import torch
 def filter_dict(d, to_save):
     """Filter configs to save as tensorboard hparams."""
 
-    def can_store(k):
-        return type(k) in {int, float, str, bool, torch.Tensor}
+    def can_store(v):
+        return type(v) in {int, float, str, bool, torch.Tensor}
 
     return (
-        {k: v for k, v in d.items() if ((k in set(to_save)) and can_store(k))}
+        {k: v for k, v in d.items() if (k in set(to_save)) and can_store(v)}
         if to_save
-        else {k: v for k, v in d.items() if can_store(k)}
+        else {k: v for k, v in d.items() if can_store(v)}
     )
 
 
@@ -55,7 +55,7 @@ def get_device(cuda_list):
     )
 
 
-def now(format="%Y%m%d_%H_%M_%S"):
+def now(format="%Y%m%d_%H_%M_%S_%f"):
     return datetime.now().strftime(format)
 
 

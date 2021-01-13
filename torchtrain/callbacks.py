@@ -20,7 +20,7 @@ class EarlyStop:
                 print("Save best-so-far model state_dict...")
         self.better = self.best or self.is_better(score, self.last_score)
         self.last_score = score
-        self.patience_now = self.patience if self.better else (self.patience_now - 1)
+        self.patience_now = self.patience if self.best else (self.patience_now - 1)
         self.stop = self.patience_now == 0
         if self.stop and self.verbose:
             print(f"Early stop! Patience is {self.patience}.")
