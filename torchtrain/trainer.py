@@ -79,7 +79,7 @@ class Trainer:
         self.metrics_to_save = metrics_to_save
         self.batch_to_xy = batch_to_xy
         self._configure()
-        self._load_state_dict(self.cfg["start_ckp_path"])
+        self.load_state_dict(self.cfg["start_ckp_path"])
         if self.data_iter:
             self.writer = SummaryWriter(self.cfg["save_path"])
             self._save_hparams()
@@ -140,13 +140,13 @@ class Trainer:
                 state_dict[phase] = data.state_dict()
         torch.save(state_dict, f"{self.cfg['ckp_path']}_{utils.now()}.pt")
 
-    def _load_state_dict(self, ckp_path=None, model_only=False):
+    def load_state_dict(self, ckp_path=None, model_only=False, map_location=None):
         if not ckp_path:
             return
         state_dict = (
-            torch.load(ckp_path)
+            torch.load(ckp_path, map_location=map_location)
             if torch.cuda.is_available()
-            else torch.load(ckp_path, map_location=torch.device("cpu"))
+            else torch.load(ckp_path, map_location="cpu")
         )
         if isinstance(self.model, torch.nn.DataParallel):
             self.model.module.load_state_dict(state_dict["model"])
@@ -206,7 +206,8 @@ class Trainer:
                     if utils.is_list_tuple(inputs)
                     else self.model(inputs)
                 )
-                for criterion in self.criteria.values():
+            for name, criterion in self.criteria.items():
+                with torch.set_grad_enabled(phase == "train" and name == "loss"):
                     criterion.update(outputs, labels)
             if phase == "train":
                 if self.cfg["grad_accum_batch"] <= 1:
@@ -344,7 +345,7 @@ class Trainer:
         return best_metrics
 
     def test(self, ckp_path, dataset="val"):
-        self._load_state_dict(ckp_path, model_only=True)
+        self.load_state_dict(ckp_path, model_only=True)
         self.oom_batch_count = {"train": 0, "val": 0, "test": 0}
         metrics_test = self._one_epoch(dataset)
         self._save_hparams(metrics_test)

@@ -22,7 +22,7 @@ class AverageAggregator:
         )
         self.sum += batch_value * batch_size
         self.count += batch_size
-        self.value = self.sum / self.count
+        self.value = (self.sum / self.count) if self.count else 0
 
     def get_value(self, reset=False):
         value = self.value
